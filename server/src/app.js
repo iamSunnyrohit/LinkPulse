@@ -11,6 +11,9 @@ import redirectRoutes from './redirect.js';
 import { register } from './lib/metrics.js';
 import analyticsRoutes from './routes/analytics.js';
 import overviewRoutes from './routes/overview.js';
+import accountRoutes from './routes/account.js';
+import accountAnalyticsRoutes from './routes/accountAnalytics.js';
+import systemRoutes from './routes/system.js';
 
 
 const app = Fastify({ logger: true, trustProxy: false });
@@ -35,9 +38,6 @@ app.get('/health', async () => {
   return { ok: true };
 });
 
-app.get('/api/v1/me', { preHandler: app.authenticate }, async (req) => ({
-  id: req.user.sub, role: req.user.role,
-}));
 
 app.get('/metrics', async (_, reply) =>
   reply.type(register.contentType).send(await register.metrics()));
@@ -48,6 +48,10 @@ await app.register(linkRoutes, { prefix: '/api/v1/links' });
 await app.register(analyticsRoutes, { prefix: '/api/v1/links' });
 await app.register(redirectRoutes); 
 await app.register(overviewRoutes, { prefix: '/api/v1/overview' });
+await app.register(accountRoutes, { prefix: '/api/v1/me' });
+await app.register(accountAnalyticsRoutes, { prefix: '/api/v1/analytics' });
+await app.register(systemRoutes, { prefix: '/api/v1/system' });
+
 
 await initQueue();
 await app.listen({ port: Number(process.env.PORT), host: '0.0.0.0' });
