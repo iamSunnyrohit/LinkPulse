@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { api } from '../api.js';
+import Breakdown from '../components/Breakdown.jsx';
 
 const RANGES = {
   '24h': { ms: 864e5, interval: 'hour' },
@@ -22,9 +23,7 @@ export default function LinkDetail() {
   const patch = useMutation({
     mutationFn: body => api(`/links/${id}`, { method: 'PATCH', body }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['link', id] });
-      qc.invalidateQueries({ queryKey: ['links'] });
-      qc.invalidateQueries({ queryKey: ['overview'] });
+      ['link', 'links', 'overview', 'account-analytics'].forEach(k => qc.invalidateQueries({ queryKey: [k] }));
       setMsg('Saved');
     },
     onError: e => setMsg(e.details?.fieldErrors?.destination_url?.[0] || e.message),
@@ -35,7 +34,8 @@ export default function LinkDetail() {
 
   async function copy() {
     await navigator.clipboard.writeText(link.short_url);
-    setCopied(true); setTimeout(() => setCopied(false), 1500);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   }
 
   return (
@@ -43,23 +43,33 @@ export default function LinkDetail() {
       <p className="muted" style={{ margin: '0 0 8px' }}><Link to="/links">← All links</Link></p>
       <div className="card">
         <div className="row between" style={{ margin: 0 }}>
-          <h1 style={{ margin: 0 }}>{link.title || link.short_code} <span className={`pill ${link.status}`}>{link.status}</span></h1>
-          <button onClick={copy}>{copied ? 'Copied' : 'Copy link'}</button>
+          <h1 style={{ margin: 0 }}>
+            {link.title || link.short_code} <span className={`pill ${link.status}`}>{link.status}</span>
+          </h1>
+          <div className="row" style={{ margin: 0 }}>
+            <Link className="btn" to={`/routing?link=${link.id}`}>Configure</Link>
+            <button onClick={copy}>{copied ? 'Copied' : 'Copy link'}</button>
+          </div>
         </div>
         <p>
           <a className="code" href={link.short_url} target="_blank" rel="noreferrer">{link.short_url}</a>
-          <span className="muted"> · created {new Date(link.created_at).toLocaleDateString()}
-            {' · '}{link.expires_at ? `expires ${new Date(link.expires_at).toLocaleString()}` : 'no expiration'}</span>
+          <span className="muted">
+            {' · '}created {new Date(link.created_at).toLocaleDateString()}
+            {' · '}{link.expires_at ? `expires ${new Date(link.expires_at).toLocaleString()}` : 'no expiration'}
+          </span>
         </p>
         <div className="row">
           <input defaultValue={link.destination_url} onChange={e => setDest(e.target.value)} />
-          <button className="primary" disabled={!dest} onClick={() => patch.mutate({ destination_url: dest })}>Update destination</button>
+          <button className="primary" disabled={!dest} onClick={() => patch.mutate({ destination_url: dest })}>
+            Update destination
+          </button>
         </div>
         <div className="row">
           {link.status === 'blocked'
             ? <p className="muted">This link was blocked by an administrator.</p>
             : <button onClick={() => patch.mutate({ is_active: link.status === 'inactive' })}>
-                {link.status === 'inactive' ? 'Reactivate' : 'Deactivate'}</button>}
+                {link.status === 'inactive' ? 'Reactivate' : 'Deactivate'}
+              </button>}
           {link.expires_at && <button onClick={() => patch.mutate({ expires_at: null })}>Remove expiration</button>}
         </div>
         {msg && <p className="muted">{msg}</p>}
@@ -118,7 +128,8 @@ function Body({ data, fmt }) {
         <div className="card"><div className="k">Freshness</div>
           <div className="big" style={{ fontSize: 18 }}>{last ? last.toLocaleTimeString() : '—'}</div>
           <span className={lagSec > 60 ? 'down' : 'muted'}>
-            {last ? (lagSec > 60 ? 'Processing may be delayed' : 'Last event processed') : 'No events processed yet'}</span></div>
+            {last ? (lagSec > 60 ? 'Processing may be delayed' : 'Last event processed') : 'No events processed yet'}
+          </span></div>
       </div>
 
       <div className="card">
@@ -148,22 +159,5 @@ function Body({ data, fmt }) {
           value: r.value === 'known_bot' ? 'Known bots' : 'Not identified as a bot', clicks: r.clicks }))} />
       </div>
     </>
-  );
-}
-
-function Breakdown({ title, rows }) {
-  const max = Math.max(1, ...rows.map(r => r.clicks));
-  return (
-    <div>
-      <h3>{title}</h3>
-      {rows.length === 0 ? <p className="muted">No data</p> : rows.map(r => (
-        <div key={r.value} style={{ marginBottom: 10 }}>
-          <div className="row between" style={{ margin: 0 }}>
-            <span>{r.value === 'unknown' ? 'Unknown / direct' : r.value}</span><b>{n(r.clicks)}</b>
-          </div>
-          <div className="bar"><i style={{ width: `${(r.clicks / max) * 100}%` }} /></div>
-        </div>
-      ))}
-    </div>
   );
 }

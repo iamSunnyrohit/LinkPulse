@@ -3,6 +3,7 @@ import { redis } from './cache.js';
 import { channel } from './queue.js';
 import { buildEvent } from './lib/event.js';
 import { metrics } from './lib/metrics.js';
+import { record } from './lib/stats.js';
 
 const TTL = 60;
 const NEG_TTL = 10;
@@ -44,6 +45,7 @@ function publishWithBudget(evt) {
 }
 
 export default async function (app) {
+  app.addHook('onResponse', async (req, reply) => { record(reply.elapsedTime, reply.statusCode); });
   app.get('/:code', async (req, reply) => {
     reply.header('Cache-Control', 'no-store');
     const { code } = req.params;
