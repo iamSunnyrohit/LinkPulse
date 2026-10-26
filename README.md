@@ -1,4 +1,4 @@
-::: {align="center"}
+
 # ⚡ LinkPulse
 
 ### `short links. fast redirects. async insights.`
