@@ -20,6 +20,8 @@ export function toDto(r) {
     status,
     expires_at: r.expires_at,
     created_at: r.created_at,
+    clicks_7d: r.clicks_7d,
+    clicks_total: r.clicks_total,
   };
 }
 
@@ -72,7 +74,13 @@ export default async function (app) {
 
   app.get('/', { preHandler: app.authenticate }, async (req) => {
     const { rows } = await pool.query(
-      'SELECT * FROM links WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 50', [req.user.sub]);
+      `SELECT l.*,
+              COALESCE(SUM(a.count) FILTER (WHERE a.bucket_start >= now() - interval '7 days'), 0)::int AS clicks_7d,
+              COALESCE(SUM(a.count), 0)::int AS clicks_total
+       FROM links l
+       LEFT JOIN click_aggregates a ON a.link_id = l.id AND a.dimension_type = 'total'
+       WHERE l.owner_id = $1
+       GROUP BY l.id ORDER BY l.created_at DESC LIMIT 50`, [req.user.sub]);
     return rows.map(toDto);
   });
   

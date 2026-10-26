@@ -10,6 +10,7 @@ import linkRoutes from './routes/links.js';
 import redirectRoutes from './redirect.js';
 import { register } from './lib/metrics.js';
 import analyticsRoutes from './routes/analytics.js';
+import overviewRoutes from './routes/overview.js';
 
 
 const app = Fastify({ logger: true, trustProxy: false });
@@ -46,6 +47,7 @@ await app.register(authRoutes, { prefix: '/api/v1/auth' });
 await app.register(linkRoutes, { prefix: '/api/v1/links' });
 await app.register(analyticsRoutes, { prefix: '/api/v1/links' });
 await app.register(redirectRoutes); 
+await app.register(overviewRoutes, { prefix: '/api/v1/overview' });
 
 await initQueue();
 await app.listen({ port: Number(process.env.PORT), host: '0.0.0.0' });
