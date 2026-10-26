@@ -13,12 +13,6 @@ privacy-minded analytics.**
 [![Redis](https://img.shields.io/badge/Redis-cache-DC382D?logo=redis&logoColor=white)](https://redis.io/)
 [![RabbitMQ](https://img.shields.io/badge/RabbitMQ-events-FF6600?logo=rabbitmq&logoColor=white)](https://www.rabbitmq.com/)
 
-`<br />`{=html}
-
-> \[!TIP\] **The LinkPulse philosophy:** keep the redirect path lean,
-> move analytics off the critical path, and make the system observable
-> when things get weird.
-:::
 
 ------------------------------------------------------------------------
 
