@@ -1,140 +1,179 @@
-# LinkPulse
+::: {align="center"}
+# ⚡ LinkPulse
 
-**A backend-first URL shortener built for fast redirects, reliable
-asynchronous analytics, and privacy-minded tracking.**
+### `short links. fast redirects. async insights.`
 
-LinkPulse shortens long URLs into compact links while keeping the
-redirect path fast and moving click analytics into an asynchronous
-processing pipeline. Redis serves cached redirect lookups, PostgreSQL
-provides durable storage, and RabbitMQ transports click events to an
-idempotent analytics worker.
+**A backend-first URL shortener engineered for speed, reliability, and
+privacy-minded analytics.**
 
-## Features
+[![Node.js](https://img.shields.io/badge/Node.js-runtime-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Fastify](https://img.shields.io/badge/Fastify-API-black?logo=fastify)](https://fastify.dev/)
+[![React](https://img.shields.io/badge/React-dashboard-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-storage-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Redis](https://img.shields.io/badge/Redis-cache-DC382D?logo=redis&logoColor=white)](https://redis.io/)
+[![RabbitMQ](https://img.shields.io/badge/RabbitMQ-events-FF6600?logo=rabbitmq&logoColor=white)](https://www.rabbitmq.com/)
 
-### Fast, reliable redirects
+`<br />`{=html}
+
+> \[!TIP\] **The LinkPulse philosophy:** keep the redirect path lean,
+> move analytics off the critical path, and make the system observable
+> when things get weird.
+:::
+
+------------------------------------------------------------------------
+
+## 🧭 Table of contents
+
+-   [What is LinkPulse?](#-what-is-linkpulse)
+-   [Feature set](#-feature-set)
+-   [Architecture](#-architecture)
+-   [Tech stack](#-tech-stack)
+-   [Quick start](#-quick-start)
+-   [Dashboard tour](#-dashboard-tour)
+-   [Redirect lifecycle](#-redirect-lifecycle)
+-   [Engineering notes](#-engineering-notes)
+-   [Testing checklist](#-testing-checklist)
+-   [Possible next quests](#-possible-next-quests)
+-   [Contributing](#-contributing)
+-   [License](#-license)
+
+## 🧩 What is LinkPulse?
+
+LinkPulse turns long URLs into compact, shareable links---and gives you
+a dashboard to understand how those links are used.
+
+Under the hood, it combines **Redis** for fast redirect lookups,
+**PostgreSQL** for durable data, and **RabbitMQ** to move click events
+to an asynchronous analytics worker. That means analytics work doesn't
+need to block the redirect response.
+
+Think of it as a tiny traffic-control tower for your links. 🚦
+
+``` text
+Long URL  ──►  Short code  ──►  Fast redirect
+                    │
+                    └────────► Event queue ──► Analytics worker ──► Dashboard
+```
+
+## ✨ Feature set
+
+### 🏎️ Redirects in the fast lane
 
 -   Redis-cached short-code lookups with PostgreSQL fallback.
 -   Stampede protection to reduce duplicate database work during cache
     misses.
--   Cache invalidation when link settings change.
--   Explicit link lifecycle behavior:
-    -   `302` --- temporary redirect to an active destination.
-    -   `403` --- access is forbidden, such as for a deactivated link.
-    -   `404` --- short code does not exist.
-    -   `410` --- link has expired.
+-   Cache invalidation when link settings are edited.
+-   Base62 short-code generation.
+-   Custom aliases for memorable links.
 
-### Asynchronous analytics
+### 📨 Analytics without the traffic jam
 
--   Redirect requests publish click events to RabbitMQ.
--   A separate worker processes analytics outside the redirect request
-    path.
--   Idempotent event processing helps prevent duplicate analytics
-    records.
--   Retries with backoff and a dead-letter queue help isolate events
-    that repeatedly fail.
+-   Click events are published to RabbitMQ.
+-   A separate worker processes analytics asynchronously.
+-   Idempotent event processing helps protect against duplicate
+    deliveries.
+-   Retries with backoff and a dead-letter queue help handle repeated
+    failures.
 -   Dashboard freshness indicators make processing delays visible.
 
-### Link management
+### 🛠️ Link controls
 
--   Base62 short-code generation.
--   Optional custom aliases.
--   Link expiration and deactivation.
--   Destination URL and routing settings.
--   UTM parameter builder and redirect testing.
+-   Update destination URLs and routing settings.
+-   Set expiration dates or deactivate a link.
+-   Build UTM parameters.
+-   Test redirects and copy short links.
+-   Handle link lifecycle states with explicit HTTP responses.
 
-### Privacy-minded reporting
+### 🕵️ Privacy-minded by design
 
 -   No raw IP addresses stored.
 -   Rotating keyed visitor hashes support approximate unique-visitor
     estimates.
--   Coarse-grained country, device, browser, and referrer information.
--   Analytics distinguish successful redirect requests from verified
+-   Reporting uses coarse country, device, browser, and referrer
+    information.
+-   Click counts represent successful redirect requests---not verified
     human visits.
 
-### Dashboard and telemetry
+### 📊 Dashboard + observability
 
--   System overview with click totals, active links, estimated unique
-    visitors, and expiring links.
--   Link list with search/filtering, status filters, sorting, and copy
-    actions.
--   Per-link and aggregate analytics with time ranges and charts.
--   Routing rules and link lifecycle controls.
--   Edge telemetry for operational visibility, including queue depth,
-    cache hit ratio, and latency percentiles.
--   Settings and administrative views.
+-   System overview: clicks, active links, estimated unique visitors,
+    and links expiring soon.
+-   Searchable and filterable link management.
+-   Aggregate and per-link analytics with time ranges and charts.
+-   Routing rules and lifecycle controls.
+-   Edge telemetry for queue depth, cache hit ratio, and latency
+    percentiles.
 
-## Tech stack
+## 🏗️ Architecture
 
-  Area                Technology
-  ------------------- ------------------
-  Frontend            React, Vite
-  API                 Node.js, Fastify
-  Database            PostgreSQL
-  Redirect cache      Redis
-  Event broker        RabbitMQ
-  Local development   Docker Compose
-
-## Architecture
-
-``` text
-Browser
-   |
-   v
-React + Vite dashboard
-   |
-   v
-Fastify API -----------------------> PostgreSQL
-   |                                     ^
-   | redirect lookup                     | cache miss / durable data
-   v                                     |
- Redis <---------------------------------+
-   |
-   | cache hit or populated cache
-   v
-302 / lifecycle response
-
-Redirect request
-   |
-   +----> publish click event ----> RabbitMQ ----> Analytics worker
-                                                    |
-                                                    v
-                                                PostgreSQL
-                                                    |
-                                                    v
-                                           Dashboard analytics
+``` mermaid
+flowchart TD
+    U[Browser / Client] --> API[Fastify API]
+    API -->|Lookup short code| R[(Redis cache)]
+    R -->|Cache miss| DB[(PostgreSQL)]
+    DB -->|Populate cache| R
+    R -->|Resolved link| REDIR[302 Redirect]
+    API -->|Publish click event| MQ[[RabbitMQ]]
+    MQ --> W[Analytics worker]
+    W -->|Idempotent writes| DB
+    DB --> DASH[React + Vite dashboard]
+    API -. telemetry .-> TEL[Edge telemetry]
+    W -. queue / worker stats .-> TEL
 ```
 
-The redirect path is designed to avoid waiting for analytics processing.
-Click events are handled asynchronously by a worker, while PostgreSQL
-remains the durable source of link and analytics data.
+**Design goal:** keep redirect handling small and predictable. Analytics
+events travel through the queue and are persisted by the worker,
+separately from the user's redirect response.
 
-## Getting started
+## 🧰 Tech stack
 
-### Prerequisites
+  -----------------------------------------------------------------------
+  Layer                   Technology              Job
+  ----------------------- ----------------------- -----------------------
+  Frontend                React + Vite            Dashboard UI
 
-Install the following tools:
+  API                     Node.js + Fastify       Link management and
+                                                  redirects
 
--   Node.js (use the version supported by your project)
--   npm
--   Docker and Docker Compose
+  Durable storage         PostgreSQL              Links and analytics
+                                                  data
+
+  Cache                   Redis                   Fast redirect lookups
+
+  Message broker          RabbitMQ                Async click-event
+                                                  delivery
+
+  Local infrastructure    Docker Compose          Run supporting services
+                                                  locally
+  -----------------------------------------------------------------------
+
+## 🚀 Quick start
+
+> \[!IMPORTANT\] The commands and environment variables below are
+> **templates**. Check your repository's `package.json`, Docker Compose
+> file, migrations, and configuration for the exact names used by your
+> implementation.
+
+### 0. Prerequisites
+
+-   Node.js and npm
+-   Docker + Docker Compose
 -   Git
 
-### 1. Clone the repository
+### 1. Clone the repo
 
 ``` bash
 git clone <your-repository-url>
 cd LinkPulse
 ```
 
-Replace `<your-repository-url>` with your repository's clone URL. If you
-already have the project locally, open a terminal in its root directory
-instead.
+Replace `<your-repository-url>` with your Git repository URL. Already
+have the project locally? Just open a terminal in its root folder.
 
 ### 2. Configure environment variables
 
-Create the environment files expected by your API and worker. Use the
-variable names and locations defined in your project configuration.
-Typical settings for this architecture include:
+Create the environment files required by your API and worker. A typical
+configuration might look like this:
 
 ``` dotenv
 NODE_ENV=development
@@ -144,32 +183,23 @@ DATABASE_URL=postgresql://<user>:<password>@localhost:5432/<database>
 REDIS_URL=redis://localhost:6379
 RABBITMQ_URL=amqp://<user>:<password>@localhost:5672
 
-# Use a strong secret from your environment; never commit it.
+# Generate a strong secret. Never commit real secrets.
 VISITOR_HASH_SECRET=<long-random-secret>
 ```
 
-These are illustrative examples, not a guarantee of the exact variable
-names used by your codebase. Check the API, worker, and Docker Compose
-configuration and update the values to match your implementation. Do not
-commit real credentials or secrets.
+Your actual variable names, ports, and file locations may differ. Use
+the names expected by your code. Keep credentials out of Git.
 
-### 3. Start infrastructure
+### 3. Start the infrastructure
 
-If your repository includes a Docker Compose configuration for
-PostgreSQL, Redis, and RabbitMQ, start those services from the directory
-containing the Compose file:
+If your Compose file defines PostgreSQL, Redis, and RabbitMQ:
 
 ``` bash
 docker compose up -d
-```
-
-Check service status:
-
-``` bash
 docker compose ps
 ```
 
-If your Compose file also starts the API or worker, verify their logs:
+Peek at service logs when debugging:
 
 ``` bash
 docker compose logs -f
@@ -177,156 +207,244 @@ docker compose logs -f
 
 ### 4. Install dependencies
 
-Install dependencies in the frontend, API, and worker directories
-according to your repository layout. For example, if each has its own
-`package.json`:
+Install dependencies in the directories that contain your app packages.
+For example:
 
 ``` bash
 cd client
 npm install
 ```
 
-Then install the API and worker dependencies in their respective
-directories. If your project uses npm workspaces or a root-level
-package, follow the scripts and workspace configuration in the root
-`package.json` instead.
+Repeat for the API and worker packages if they have separate
+`package.json` files. If the repository uses npm workspaces or
+root-level scripts, follow that setup instead.
 
-### 5. Initialize the database
+### 5. Prepare the database
 
-Run the migrations or schema setup provided by your project before
-starting the API and analytics worker. The exact command depends on the
-migration tool configured in your repository; check the relevant
-`package.json` scripts and database documentation.
+Run the migrations or schema initialization command provided by the
+project. The exact command depends on the migration tool and scripts
+configured in your repository.
 
-### 6. Start the application
+### 6. Start the app
 
-Start the API, analytics worker, and frontend using the scripts defined
-in each package. A common local setup runs them in separate terminals:
+Run the scripts defined in your packages. In a multi-package setup, you
+may run the API, worker, and frontend in separate terminals:
 
 ``` bash
-# Terminal 1: API
+# Terminal 1 — API (example script)
 npm run dev
 
-# Terminal 2: analytics worker
+# Terminal 2 — worker (example script)
 npm run worker
 
-# Terminal 3: frontend
+# Terminal 3 — frontend (example script)
 npm run dev
 ```
 
-Run these commands from the appropriate package directories and adjust
-them to match the scripts actually defined in your repository. The
-frontend's Vite development server will print the local URL when it
-starts.
+Run each command from the correct package directory and adjust it to
+match your actual scripts. Vite prints the frontend URL after it starts.
 
-## Using LinkPulse
+## 🖥️ Dashboard tour
 
-1.  Sign in to the dashboard.
-2.  Select **New short link** and enter a destination URL.
-3.  Optionally choose a custom alias and configure an expiration.
-4.  Copy the generated short URL and open it to test the redirect.
-5.  Visit **Links** to search, filter, sort, and manage links.
-6.  Open **Analytics** to inspect click volume, estimated unique
-    visitors, referrers, countries, devices, browsers, and top links.
-7.  Open **Routing Rules** to update the destination, configure
-    expiration, deactivate a link, or build UTM parameters.
-8.  Use **Edge Telemetry** to inspect operational signals such as queue
-    depth, cache behavior, and latency.
+  -----------------------------------------------------------------------
+  Section                             What you'll find
+  ----------------------------------- -----------------------------------
+  **Overview**                        Click totals, active links,
+                                      approximate visitors, expiring
+                                      links, and click volume
 
-Analytics are asynchronous, so dashboard values may appear after a short
-delay while the worker processes queued events.
+  **Links**                           Search, status filters, sorting,
+                                      destination details, and copy
+                                      actions
 
-## Link lifecycle and response behavior
+  **Analytics**                       Click trends, top links, referrers,
+                                      countries, devices, and browsers
 
-  Condition                      Expected response
-  ------------------------------ --------------------------
-  Active, unexpired short code   `302` temporary redirect
-  Deactivated link               `403` forbidden
-  Unknown short code             `404` not found
-  Expired link                   `410` gone
+  **Routing Rules**                   Destination editing, expiration,
+                                      deactivation, redirect testing, and
+                                      UTM builder
 
-The exact precedence for overlapping states (for example, a link that is
-both expired and deactivated) follows the lifecycle checks implemented
-by the API.
+  **Edge Telemetry**                  Operational signals such as queue
+                                      depth, cache hit ratio, and latency
+                                      percentiles
 
-## Operational notes
+  **Settings**                        Application and account settings
+                                      exposed by the current build
+  -----------------------------------------------------------------------
 
--   **Cache invalidation:** when a destination or lifecycle setting
-    changes, invalidate or refresh the corresponding Redis entry so
-    future redirects use current settings.
--   **Stampede protection:** coordinate cache-miss handling so
-    simultaneous requests for the same code do not trigger unnecessary
-    duplicate database queries.
--   **Analytics idempotency:** use a stable event identifier or another
-    durable deduplication strategy when persisting click events.
--   **Retries and dead letters:** retry transient failures with backoff
-    and route exhausted messages to the dead-letter queue for
-    investigation or replay.
--   **Privacy:** avoid storing raw IP addresses. Protect visitor-hash
-    secrets and rotate them according to the application's privacy
-    design.
--   **Telemetry:** monitor queue depth, worker failures, cache hit
-    ratio, database health, and redirect latency percentiles.
--   **Secrets:** keep credentials and signing/hash secrets in
-    environment configuration or a secret manager, not in source
-    control.
+### 🧪 Try the happy path
 
-## Development and testing
+1.  Sign in to LinkPulse.
+2.  Click **New short link** and add a destination URL.
+3.  Optionally set a custom alias or expiry.
+4.  Copy the generated short URL and open it in a new tab.
+5.  Return to the dashboard and check the link's click count.
+6.  Open **Analytics** to explore available breakdowns.
+7.  Change a routing setting and test the redirect again.
 
-Use the scripts available in each package's `package.json` to run tests,
-linting, and builds. Before deploying changes, verify at least:
+**Tiny heads-up:** analytics are asynchronous. A click can redirect
+successfully before its event appears in the dashboard. A little queue
+time is expected.
 
--   Redirect behavior for active, unknown, expired, and deactivated
-    links.
--   Cache miss fallback and cache invalidation after edits.
--   Concurrent cache misses for the same short code.
--   Duplicate event delivery and analytics idempotency.
--   Retry/backoff behavior and dead-letter routing.
--   URL validation, custom-alias conflicts, and expiration boundaries.
--   Dashboard handling when analytics processing is delayed or telemetry
-    is unavailable.
+## 🔀 Redirect lifecycle
 
-## Project structure
+  ------------------------------------------------------------------------
+  Situation                        Expected response Meaning
+  --------------------- ---------------------------- ---------------------
+  Active, unexpired                            `302` Temporarily redirect
+  link                                               to the destination
 
-The exact directory layout depends on your repository. A typical
-organization for LinkPulse is:
+  Deactivated link                             `403` Access is forbidden
 
-``` text
-LinkPulse/
-├── client/                 # React + Vite dashboard
-├── server/                 # Fastify API
-│   ├── src/
-│   │   ├── routes/         # API and redirect routes
-│   │   ├── services/       # Link, cache, and analytics logic
-│   │   └── ...             # Database and infrastructure modules
-├── worker/                 # RabbitMQ analytics consumer (if separate)
-├── docker-compose.yml
-└── README.md
+  Unknown short code                           `404` No matching link
+                                                     exists
+
+  Expired link                                 `410` The resource is gone
+  ------------------------------------------------------------------------
+
+If a link is both expired and deactivated, which response wins depends
+on the order of lifecycle checks in the implementation.
+
+## 🧠 Engineering notes
+
+```{=html}
+<details>
 ```
+```{=html}
+<summary>
+```
+`<strong>`{=html}⚡ Cache strategy`</strong>`{=html}
+```{=html}
+</summary>
+```
+-   Treat PostgreSQL as durable storage and Redis as the fast lookup
+    layer.
+-   Invalidate or refresh cached entries after edits and lifecycle
+    changes.
+-   Coordinate concurrent cache misses to avoid a thundering herd of
+    database queries.
+-   Monitor cache hit ratio and redirect latency together; one metric
+    rarely tells the whole story.
 
-Adjust this overview to reflect the actual folders in your repository.
+```{=html}
+</details>
+```
+```{=html}
+<details>
+```
+```{=html}
+<summary>
+```
+`<strong>`{=html}📬 Queue reliability`</strong>`{=html}
+```{=html}
+</summary>
+```
+-   Assume message delivery can happen more than once.
+-   Use a stable event identifier or another durable deduplication
+    strategy.
+-   Retry transient failures with backoff.
+-   Route repeatedly failing messages to a dead-letter queue for
+    inspection and controlled replay.
+-   Monitor queue depth, consumer health, processing failures, and event
+    freshness.
 
-## Roadmap ideas
+```{=html}
+</details>
+```
+```{=html}
+<details>
+```
+```{=html}
+<summary>
+```
+`<strong>`{=html}🔐 Privacy and security`</strong>`{=html}
+```{=html}
+</summary>
+```
+-   Do not store raw IP addresses.
+-   Protect visitor-hash secrets and rotate them according to the
+    privacy design.
+-   Validate destination URLs and custom aliases.
+-   Keep database credentials and service secrets out of source control.
+-   Apply appropriate authentication and authorization to management and
+    telemetry endpoints.
 
--   Shared links with QR-code generation.
--   More granular retention controls for analytics.
--   Export analytics as CSV.
--   Alerting for queue backlog or elevated redirect latency.
--   Automated integration tests for Redis and RabbitMQ failure
-    scenarios.
+```{=html}
+</details>
+```
+```{=html}
+<details>
+```
+```{=html}
+<summary>
+```
+`<strong>`{=html}🔭 Observability`</strong>`{=html}
+```{=html}
+</summary>
+```
+Useful signals include:
 
-## Contributing
+-   Redirect latency percentiles (p50, p95, p99).
+-   Redis hit/miss ratio and database fallback rate.
+-   RabbitMQ queue depth and consumer throughput.
+-   Worker retries, failures, and dead-letter count.
+-   Time between click event creation and analytics visibility.
+
+```{=html}
+</details>
+```
+## 🧯 Testing checklist
+
+Before shipping a change, consider checking:
+
+-   [ ] Active, unknown, expired, and deactivated link responses.
+-   [ ] Cache miss fallback and cache invalidation after edits.
+-   [ ] Concurrent misses for the same short code.
+-   [ ] Duplicate event delivery and analytics idempotency.
+-   [ ] Retry/backoff behavior and dead-letter routing.
+-   [ ] URL validation and custom-alias conflicts.
+-   [ ] Expiration boundaries and timezone handling.
+-   [ ] Dashboard behavior while analytics are delayed.
+-   [ ] Graceful behavior when Redis, RabbitMQ, or the worker is
+    unavailable.
+-   [ ] Authentication and authorization on protected routes.
+
+Use the test, lint, and build scripts already defined in your package
+files; exact commands vary by repository.
+
+## 🗺️ Possible next quests
+
+A few ideas for the next sprint:
+
+-   [ ] QR-code generation for short links.
+-   [ ] CSV export for analytics.
+-   [ ] Alerts for growing queue backlog or elevated redirect latency.
+-   [ ] Configurable analytics retention.
+-   [ ] Integration tests for Redis and RabbitMQ failure scenarios.
+-   [ ] A local development health-check command.
+-   [ ] Link previews and social sharing metadata.
+
+## 🤝 Contributing
+
+Got a useful improvement? Awesome. 🛠️
 
 1.  Create a branch for your change.
-2.  Keep redirect handling fast and independent from analytics
+2.  Keep the redirect path fast and independent from analytics
     processing.
-3.  Add or update tests for lifecycle, caching, and event-processing
-    behavior.
-4.  Document any new environment variables or operational requirements.
+3.  Add tests for lifecycle, caching, and event handling where
+    appropriate.
+4.  Document new environment variables and operational behavior.
 5.  Open a pull request with a clear summary and test results.
 
-## License
+## 📄 License
 
-Add the license used by your project here. If no license has been
-selected, the project is not automatically open source simply because it
-is hosted in a public repository.
+Add your project's chosen license here. A public GitHub repository is
+not automatically open source without a license.
+
+------------------------------------------------------------------------
+
+::: {align="center"}
+**Built for the redirect. Designed for the details.** ⚡
+
+`ship code` · `watch queues` · `follow the pulse`
+:::
